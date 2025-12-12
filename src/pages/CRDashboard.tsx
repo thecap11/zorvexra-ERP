@@ -1,0 +1,323 @@
+import React, { useState, useEffect } from 'react';
+import { Layout } from '../components/Layout';
+import { Card } from '../components/Card';
+import { MetricCard } from '../components/MetricCard';
+import { Button } from '../components/Button';
+import { useAuth } from '../context/AuthContext';
+import { useTasksForClass } from '../hooks/useTasks';
+import { UserRepository } from '../services/userRepository';
+import { SendNotificationModal } from '../components/SendNotificationModal';
+import { Users, ClipboardList, Calendar, Plus, BookOpen, Clock, CheckCircle, AlertCircle, Bell, MessageSquare } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+// Today's timetable - hardcoded for demo (in production, fetch from service)
+const todaySchedule = [
+    { time: '09:00-09:50', subject: 'Mathematics', type: 'Lecture', room: 'A-101' },
+    { time: '10:00-10:50', subject: 'Physics', type: 'Lab', room: 'L-205' },
+    { time: '11:00-11:50', subject: 'Free Period', type: 'Free', room: '-' },
+    { time: '12:00-12:50', subject: 'Computer Science', type: 'Theory', room: 'B-303' },
+    { time: '14:00-14:50', subject: 'English', type: 'Lecture', room: 'A-102' },
+];
+
+export const CRDashboard: React.FC = () => {
+    const { user } = useAuth();
+    const navigate = useNavigate();
+    const { tasks, isLoading } = useTasksForClass(user?.classId || '');
+    const [studentCount, setStudentCount] = useState(0);
+    const [showNotificationModal, setShowNotificationModal] = useState(false);
+
+    useEffect(() => {
+        const fetchStudentCount = async () => {
+            if (user?.classId) {
+                const students = await UserRepository.getStudentsByClassId(user.classId);
+                setStudentCount(students.length);
+            }
+        };
+        fetchStudentCount();
+    }, [user?.classId]);
+
+    const assignmentCount = tasks.filter(t => t.type === 'ASSIGNMENT').length;
+    const attendanceCount = tasks.filter(t => t.type === 'ATTENDANCE').length;
+
+    // Calculate tasks due this week
+    const now = new Date();
+    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const tasksDueThisWeek = tasks.filter(t => {
+        if (!t.dueDate) return false;
+        const dueDate = new Date(t.dueDate);
+        return dueDate >= now && dueDate <= weekFromNow;
+    }).length;
+
+    // Separate assignments and attendance for split layout
+    const recentAssignments = tasks.filter(t => t.type === 'ASSIGNMENT').slice(0, 5);
+    const recentAttendance = tasks.filter(t => t.type === 'ATTENDANCE').slice(0, 5);
+
+    return (
+        <Layout>
+            <div className="space-y-8 animate-fade-in">
+                {/* HERO HEADER */}
+                <div className="bg-gradient-to-r from-blue-600 to-blue-500 rounded-2xl p-8 shadow-lg">
+                    <div className="flex items-center space-x-4">
+                        <div className="bg-white/20 backdrop-blur-sm rounded-full p-4">
+                            <BookOpen className="w-10 h-10 text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-bold text-white mb-1">
+                                Welcome back, {user?.name}!
+                            </h1>
+                            <p className="text-blue-100 text-lg">Class Representative Dashboard</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* METRIC CARDS ROW */}
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                    <MetricCard
+                        label="Total Students"
+                        value={studentCount}
+                        icon={Users}
+                        color="gold"
+                    />
+                    <MetricCard
+                        label="Assignments"
+                        value={assignmentCount}
+                        icon={ClipboardList}
+                        color="purple"
+                    />
+                    <MetricCard
+                        label="Attendance Records"
+                        value={attendanceCount}
+                        icon={Calendar}
+                        color="green"
+                    />
+                    <MetricCard
+                        label="Tasks Due This Week"
+                        value={tasksDueThisWeek}
+                        icon={Clock}
+                        color="blue"
+                    />
+                </div>
+
+                {/* QUICK ACTIONS - COMPACT BAR */}
+                <Card>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                        <Button
+                            onClick={() => navigate('/cr/tasks')}
+                            className="h-12 flex items-center justify-center space-x-2"
+                        >
+                            <ClipboardList className="w-5 h-5" />
+                            <span>View All Tasks</span>
+                        </Button>
+                        <Button
+                            onClick={() => navigate('/cr/tasks/create')}
+                            variant="secondary"
+                            className="h-12 flex items-center justify-center space-x-2"
+                        >
+                            <Plus className="w-5 h-5" />
+                            <span>Create Assignment</span>
+                        </Button>
+                        <Button
+                            onClick={() => navigate('/cr/attendance-calendar')}
+                            variant="secondary"
+                            className="h-12 flex items-center justify-center space-x-2"
+                        >
+                            <Calendar className="w-5 h-5" />
+                            <span>Attendance Calendar</span>
+                        </Button>
+                        <Button
+                            onClick={() => navigate('/cr/timetable')}
+                            variant="secondary"
+                            className="h-12 flex items-center justify-center space-x-2"
+                        >
+                            <BookOpen className="w-5 h-5" />
+                            <span>Timetable</span>
+                        </Button>
+                        <Button
+                            onClick={() => navigate('/cr/course-structure')}
+                            variant="secondary"
+                            className="h-12 flex items-center justify-center space-x-2"
+                        >
+                            <BookOpen className="w-5 h-5" />
+                            <span>Course Structure</span>
+                        </Button>
+                        <Button
+                            onClick={() => navigate('/cr/elective-preferences')}
+                            variant="secondary"
+                            className="h-12 flex items-center justify-center space-x-2"
+                        >
+                            <Users className="w-5 h-5" />
+                            <span>Elective Preferences</span>
+                        </Button>
+                        <Button
+                            onClick={() => setShowNotificationModal(true)}
+                            variant="secondary"
+                            className="h-12 flex items-center justify-center space-x-2"
+                        >
+                            <Bell className="w-5 h-5" />
+                            <span>Send Notification</span>
+                        </Button>
+                        <Button
+                            onClick={() => navigate('/cr/messages')}
+                            variant="secondary"
+                            className="h-12 flex items-center justify-center space-x-2"
+                        >
+                            <MessageSquare className="w-5 h-5" />
+                            <span>Student Messages</span>
+                        </Button>
+                        <Button
+                            onClick={() => navigate('/cr/students')}
+                            variant="secondary"
+                            className="h-12 flex items-center justify-center space-x-2"
+                        >
+                            <Users className="w-5 h-5" />
+                            <span>Manage Students</span>
+                        </Button>
+                    </div>
+                </Card>
+
+                {/* TODAY'S SCHEDULE SECTION */}
+                <Card>
+                    <div className="mb-6">
+                        <h2 className="text-xl font-semibold text-slate-800 flex items-center space-x-2">
+                            <Clock className="w-6 h-6 text-blue-600" />
+                            <span>Today's Schedule</span>
+                        </h2>
+                        <p className="text-sm text-slate-500 mt-1">
+                            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                        </p>
+                    </div>
+                    <div className="space-y-3">
+                        {todaySchedule.map((period, index) => (
+                            <div
+                                key={index}
+                                className={`flex items-center justify-between p-4 rounded-xl border transition-all ${period.type === 'Free'
+                                    ? 'bg-slate-50 border-slate-200 text-slate-400'
+                                    : 'bg-gradient-to-r from-blue-50 to-white border-blue-200 hover:border-blue-400'
+                                    }`}
+                            >
+                                <div className="flex items-center space-x-4">
+                                    <div className={`p-2 rounded-lg ${period.type === 'Free' ? 'bg-slate-200' : 'bg-blue-100'
+                                        }`}>
+                                        <Clock className={`w-5 h-5 ${period.type === 'Free' ? 'text-slate-400' : 'text-blue-600'
+                                            }`} />
+                                    </div>
+                                    <div>
+                                        <p className={`font-semibold ${period.type === 'Free' ? 'text-slate-400' : 'text-slate-900'
+                                            }`}>
+                                            {period.subject}
+                                        </p>
+                                        <p className="text-sm text-slate-500">{period.time}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className={`text-sm font-medium ${period.type === 'Free' ? 'text-slate-400' : 'text-blue-600'
+                                        }`}>
+                                        {period.type}
+                                    </p>
+                                    {period.room !== '-' && (
+                                        <p className="text-xs text-slate-500">Room {period.room}</p>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </Card>
+
+                {/* RECENT ITEMS - SPLIT COLUMN LAYOUT */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Left Column - Assignments */}
+                    <Card>
+                        <div className="mb-4">
+                            <h2 className="text-xl font-semibold text-slate-800 flex items-center space-x-2">
+                                <ClipboardList className="w-6 h-6 text-green-600" />
+                                <span>Recent Assignments</span>
+                            </h2>
+                        </div>
+                        {isLoading ? (
+                            <p className="text-slate-500">Loading...</p>
+                        ) : recentAssignments.length === 0 ? (
+                            <div className="text-center py-8">
+                                <ClipboardList className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                                <p className="text-slate-500">No assignments yet</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {recentAssignments.map(task => (
+                                    <div
+                                        key={task.id}
+                                        className="flex items-center space-x-3 p-3 bg-gradient-to-r from-green-50 to-white rounded-xl border border-green-200 hover:border-green-400 hover:shadow-sm transition-all cursor-pointer"
+                                        onClick={() => navigate(`/cr/tasks/${task.id}`)}
+                                    >
+                                        <div className="bg-green-100 p-2 rounded-lg">
+                                            <CheckCircle className="w-5 h-5 text-green-600" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-medium text-slate-900 truncate">{task.title}</h4>
+                                            <p className="text-xs text-slate-500">
+                                                {task.dueDate && `Due: ${new Date(task.dueDate).toLocaleDateString()}`}
+                                            </p>
+                                        </div>
+                                        <div className="text-xs text-slate-400">
+                                            {new Date(task.createdAt).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </Card>
+
+                    {/* Right Column - Attendance Records */}
+                    <Card>
+                        <div className="mb-4">
+                            <h2 className="text-xl font-semibold text-slate-800 flex items-center space-x-2">
+                                <Calendar className="w-6 h-6 text-orange-600" />
+                                <span>Recent Attendance</span>
+                            </h2>
+                        </div>
+                        {isLoading ? (
+                            <p className="text-slate-500">Loading...</p>
+                        ) : recentAttendance.length === 0 ? (
+                            <div className="text-center py-8">
+                                <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                                <p className="text-slate-500">No attendance records yet</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {recentAttendance.map(task => (
+                                    <div
+                                        key={task.id}
+                                        className="flex items-center space-x-3 p-3 bg-gradient-to-r from-orange-50 to-white rounded-xl border border-orange-200 hover:border-orange-400 hover:shadow-sm transition-all cursor-pointer"
+                                        onClick={() => navigate(`/cr/tasks/${task.id}`)}
+                                    >
+                                        <div className="bg-orange-100 p-2 rounded-lg">
+                                            <AlertCircle className="w-5 h-5 text-orange-600" />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="font-medium text-slate-900 truncate">{task.title}</h4>
+                                            <p className="text-xs text-slate-500">
+                                                {task.dueDate && `Date: ${new Date(task.dueDate).toLocaleDateString()}`}
+                                            </p>
+                                        </div>
+                                        <div className="text-xs text-slate-400">
+                                            {new Date(task.createdAt).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </Card>
+                </div>
+
+                {/* Send Notification Modal */}
+                <SendNotificationModal
+                    isOpen={showNotificationModal}
+                    onClose={() => setShowNotificationModal(false)}
+                    onSuccess={() => {
+                        // Show success toast or notification
+                        console.log('Notification sent successfully!');
+                    }}
+                />
+            </div>
+        </Layout>
+    );
+};
